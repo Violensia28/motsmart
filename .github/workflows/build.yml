@@ -1,0 +1,40 @@
+name: CI Build (ESP32 full)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+env:
+  PIO_ENV: full
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install PlatformIO
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install platformio
+      - name: Locate PlatformIO project dir
+        id: pio
+        run: |
+          FILE="$(git ls-files | grep -m1 -E '^.*platformio\.ini$' || true)"
+          if [ -z "$FILE" ]; then echo "platformio.ini not found"; exit 1; fi
+          echo "dir=$(dirname "$FILE")" >> "$GITHUB_OUTPUT"
+      - name: List envs
+        working-directory: ${{ steps.pio.outputs.dir }}
+        run: pio run -t envlist || true
+      - name: Build FULL
+        working-directory: ${{ steps.pio.outputs.dir }}
+        run: pio run -e $PIO_ENV -v
+      - name: Upload CI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-bins
+          path: ${{ steps.pio.outputs.dir }}/.pio/build/$PIO_ENV/*.bin
